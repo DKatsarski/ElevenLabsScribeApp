@@ -1,66 +1,119 @@
 ﻿using RestSharp;
 using System;
-using System.Text.Json; // Used to parse the result
+using System.Collections.Generic; // Needed for List<>
+using System.IO;
+using System.Text; // Needed for StringBuilder
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace ElevenLabsScribeTool
+namespace TranscriptionApp
 {
-    // 1. Define a class to hold the response data
+    // 1. We need a nested class structure to hold the word-level details
     public class TranscriptionResponse
+    {
+        [JsonPropertyName("language_code")]
+        public string LanguageCode { get; set; }
+
+        // Instead of just "text", we now grab the list of words
+        [JsonPropertyName("words")]
+        public List<WordData> Words { get; set; }
+    }
+
+    public class WordData
     {
         [JsonPropertyName("text")]
         public string Text { get; set; }
 
-        [JsonPropertyName("language_code")]
-        public string LanguageCode { get; set; }
+        [JsonPropertyName("speaker_id")]
+        public string SpeakerId { get; set; }
     }
 
     class Program
     {
         private static void Main(string[] args)
         {
-            // 2. Setup the Client (Base URL)
-            var client = new RestClient("https://api.elevenlabs.io/v1");
+            // --- CONFIGURATION ---
+            string inputFilePath = @"C:\Users\ddkat\Desktop\Borovan 1.mp3";
+            string outputFilePath = Path.ChangeExtension(inputFilePath, ".txt");
+            string apiKey = "sk_9a6746ca19cea7211a8d46b113bf0a207657314c125e32ca";
 
-            // 3. Setup the Request (Endpoint Resource)
+            var client = new RestClient("https://api.elevenlabs.io/v1");
             var request = new RestRequest("speech-to-text", Method.Post);
 
-            // 4. Headers
-            // REPLACE THIS with your actual API Key
-            request.AddHeader("xi-api-key", "sk_9a6746ca19cea7211a8d46b113bf0a207657314c125e32ca");
-
-            // 5. Add Parameters
-            // Instead of the long string, we use AddParameter for form fields
+            request.AddHeader("xi-api-key", apiKey);
             request.AddParameter("model_id", "scribe_v1");
-            // request.AddParameter("tag_audio_events", "true"); // Example of adding other options
+            request.AddFile("file", inputFilePath);
 
-            // 6. Add the File
-            // RestSharp handles opening the file, streaming it, and closing it.
-            string filePath = @"C:\Users\ddkat\Desktop\Borovan 1.mp3";
-            request.AddFile("file", filePath);
+            // --- IMPORTANT CHANGE 1: Enable Diarization ---
+            request.AddParameter("diarize", "true");
 
-            Console.WriteLine("Uploading and Transcribing...");
+            Console.WriteLine($"Uploading {Path.GetFileName(inputFilePath)}...");
 
-            // 7. Execute
             var response = client.Execute(request);
 
-            // 8. Handle the Transcription
             if (response.IsSuccessful)
             {
-                // Deserialize the JSON string into our C# Object
                 var data = JsonSerializer.Deserialize<TranscriptionResponse>(response.Content);
 
-                Console.WriteLine("--- Transcription Success ---");
-                Console.WriteLine($"Language Detected: {data.LanguageCode}");
-                Console.WriteLine("Text:");
-                Console.WriteLine(data.Text);
+                if (data != null && data.Words != null && data.Words.Count > 0)
+                {
+                    Console.WriteLine("Transcription received. Formatting by speaker...");
+
+                    // --- IMPORTANT CHANGE 2: Build the formatted string ---
+                    StringBuilder sb = new StringBuilder();
+
+                    sb.AppendLine($"File: {Path.GetFileName(inputFilePath)}");
+                    sb.AppendLine($"Language: {data.LanguageCode}");
+                    sb.AppendLine("----------------------------------------");
+                    sb.AppendLine();
+
+                    string currentSpeaker = null;
+
+                    foreach (var word in data.Words)
+                    {
+                        // Handle cases where speaker_id might be null/empty
+                        string speakerLabel = string.IsNullOrEmpty(word.SpeakerId) ? "Unknown" : word.SpeakerId;
+
+                        // If the speaker has changed since the last word...
+                        if (speakerLabel != currentSpeaker)
+                        {
+                            // If it's not the very first line, add a double break for readability
+                            if (currentSpeaker != null)
+                                sb.AppendLine().AppendLine();
+
+                            // Write the Speaker Name (e.g., "speaker_0:")
+                            sb.Append($"{speakerLabel}: ");
+
+                            // Update our tracker
+                            currentSpeaker = speakerLabel;
+                        }
+
+                        // Add the word and a space
+                        sb.Append(word.Text + " ");
+                    }
+
+                    // Save the formatted content
+                    try
+                    {
+                        File.WriteAllText(outputFilePath, sb.ToString());
+                        Console.WriteLine($"Success! File saved to: {outputFilePath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error saving file: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Response successful, but no words/speakers detected.");
+                }
             }
             else
             {
-                Console.WriteLine($"Error: {response.StatusCode}");
-                Console.WriteLine(response.Content); // Print error details from API
+                Console.WriteLine($"API Error: {response.StatusCode} - {response.Content}");
             }
 
+            Console.WriteLine("Press Enter to exit...");
             Console.ReadLine();
         }
     }
