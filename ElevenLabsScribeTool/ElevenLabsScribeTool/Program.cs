@@ -39,7 +39,15 @@ namespace TranscriptionApp
             string outputFilePath = Path.ChangeExtension(inputFilePath, ".txt");
             string apiKey = "sk_9a6746ca19cea7211a8d46b113bf0a207657314c125e32ca";
 
-            var client = new RestClient("https://api.elevenlabs.io/v1");
+            //var client = new RestClient("https://api.elevenlabs.io/v1");
+
+            var options = new RestClientOptions("https://api.elevenlabs.io/v1")
+            {
+                // Set timeout to infinite (or a very large number of milliseconds)
+                // This allows the 61MB upload to complete without the code panicking.
+                Timeout = Timeout.InfiniteTimeSpan
+            };
+            var client = new RestClient(options);
             var request = new RestRequest("speech-to-text", Method.Post);
 
             request.AddHeader("xi-api-key", apiKey);
