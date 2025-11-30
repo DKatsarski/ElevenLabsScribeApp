@@ -90,6 +90,7 @@ namespace TranscriptionApp
 
                         // Add word to current buffer
                         currentSegment.Add(word);
+
                     }
 
                     // Don't forget to write the very last segment remaining in the buffer
