@@ -2,13 +2,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace TranscriptionApp
 {
-    // 1. Update the class to capture Start and End times
     public class TranscriptionResponse
     {
         [JsonPropertyName("words")]
@@ -23,7 +24,6 @@ namespace TranscriptionApp
         [JsonPropertyName("speaker_id")]
         public string SpeakerId { get; set; }
 
-        // Timestamps come as doubles (seconds, e.g., 1.54)
         [JsonPropertyName("start")]
         public double Start { get; set; }
 
@@ -35,16 +35,23 @@ namespace TranscriptionApp
     {
         private static void Main(string[] args)
         {
-            string inputFilePath = @"C:\Users\ddkat\Desktop\Borovan 1.mp3";
-            string outputFilePath = Path.ChangeExtension(inputFilePath, ".txt");
-            string apiKey = "sk_9a6746ca19cea7211a8d46b113bf0a207657314c125e32ca";
+            // --- CONFIGURATION ---
+            // Note: Ensure this path points to your actual file
+            string inputFilePath = @"C:\Users\ddkat\Desktop\Borovan 1 Normalized.mp3";
 
-            //var client = new RestClient("https://api.elevenlabs.io/v1");
+            // SECURITY: Ideally, set this in your Windows Environment Variables
+            string apiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY") ?? "YOUR_API_KEY_HERE";
 
+            // TUNING: "bg" for Bulgarian, "en" for English
+            string languageCode = "bg";
+
+            Console.WriteLine("Enter number of speakers (leave empty for Auto):");
+            string speakerInput = Console.ReadLine();
+            int? numSpeakers = string.IsNullOrWhiteSpace(speakerInput) ? (int?)null : int.Parse(speakerInput);
+
+            // --- API REQUEST ---
             var options = new RestClientOptions("https://api.elevenlabs.io/v1")
             {
-                // Set timeout to infinite (or a very large number of milliseconds)
-                // This allows the 61MB upload to complete without the code panicking.
                 Timeout = Timeout.InfiniteTimeSpan
             };
             var client = new RestClient(options);
@@ -54,7 +61,16 @@ namespace TranscriptionApp
             request.AddParameter("model_id", "scribe_v1");
             request.AddFile("file", inputFilePath);
             request.AddParameter("diarize", "true");
-            // Important: timestamps are enabled by default on scribe_v1, but good to be aware
+
+            if (!string.IsNullOrEmpty(languageCode))
+            {
+                request.AddParameter("language_code", languageCode);
+            }
+
+            if (numSpeakers.HasValue && numSpeakers.Value > 0)
+            {
+                request.AddParameter("num_speakers", numSpeakers.Value);
+            }
 
             Console.WriteLine($"Uploading {Path.GetFileName(inputFilePath)}...");
 
@@ -66,85 +82,85 @@ namespace TranscriptionApp
 
                 if (data != null && data.Words != null && data.Words.Count > 0)
                 {
-                    Console.WriteLine("Processing segments...");
-                    StringBuilder sb = new StringBuilder();
+                    Console.WriteLine($"Received {data.Words.Count} words. Processing...");
 
-                    // --- LOGIC TO GROUP WORDS INTO SEGMENTS ---
+                    // CHANGED: Save as .txt
+                    string outputFilePath = Path.ChangeExtension(inputFilePath, ".txt");
 
-                    List<WordData> currentSegment = new List<WordData>();
-                    string currentSpeaker = data.Words[0].SpeakerId;
-
-                    foreach (var word in data.Words)
-                    {
-                        string wordSpeaker = string.IsNullOrEmpty(word.SpeakerId) ? "Unknown" : word.SpeakerId;
-
-                        // If speaker changed, write the PREVIOUS segment to the file
-                        if (wordSpeaker != currentSpeaker && currentSegment.Count > 0)
-                        {
-                            AppendSegment(sb, currentSegment, currentSpeaker);
-
-                            // Reset for new speaker
-                            currentSegment.Clear();
-                            currentSpeaker = wordSpeaker;
-                        }
-
-                        // Add word to current buffer
-                        currentSegment.Add(word);
-
-                    }
-
-                    // Don't forget to write the very last segment remaining in the buffer
-                    if (currentSegment.Count > 0)
-                    {
-                        AppendSegment(sb, currentSegment, currentSpeaker);
-                    }
-
-                    // Save file with UTF8 encoding (crucial for Cyrillic/Bulgarian)
-                    File.WriteAllText(outputFilePath, sb.ToString(), Encoding.UTF8);
-                    Console.WriteLine($"Saved to: {outputFilePath}");
+                    ProcessAndSave(data.Words, outputFilePath);
+                }
+                else
+                {
+                    Console.WriteLine("Response was successful but contained no words.");
                 }
             }
             else
             {
                 Console.WriteLine($"Error: {response.Content}");
             }
+
+            Console.WriteLine("Done. Press Enter to exit.");
             Console.ReadLine();
         }
 
-        // --- HELPER METHODS ---
+        private static void ProcessAndSave(List<WordData> words, string outputPath)
+        {
+            StringBuilder sb = new StringBuilder();
+            List<WordData> buffer = new List<WordData>();
 
-        private static void AppendSegment(StringBuilder sb, List<WordData> words, string speaker)
+            string currentSpeaker = words[0].SpeakerId;
+
+            foreach (var word in words)
+            {
+                string wordSpeaker = string.IsNullOrEmpty(word.SpeakerId) ? "Unknown" : word.SpeakerId;
+
+                // Only flush the buffer if the speaker actually changes
+                if (wordSpeaker != currentSpeaker)
+                {
+                    if (buffer.Count > 0)
+                    {
+                        AppendTextSegment(sb, buffer, currentSpeaker);
+                        buffer.Clear();
+                    }
+                    currentSpeaker = wordSpeaker;
+                }
+
+                buffer.Add(word);
+            }
+
+            // Flush remaining words
+            if (buffer.Count > 0)
+            {
+                AppendTextSegment(sb, buffer, currentSpeaker);
+            }
+
+            File.WriteAllText(outputPath, sb.ToString(), Encoding.UTF8);
+            Console.WriteLine($"Saved to: {outputPath}");
+        }
+
+        // CHANGED: Formats as readable Text (Original Format)
+        private static void AppendTextSegment(StringBuilder sb, List<WordData> words, string speaker)
         {
             if (words.Count == 0) return;
 
-            // 1. Get Start time of the FIRST word
             var startTime = FormatTime(words[0].Start);
-
-            // 2. Get End time of the LAST word
             var endTime = FormatTime(words[words.Count - 1].End);
+            string text = string.Join(" ", words.Select(w => w.Text));
 
-            // 3. Build the text sentence
-            string sentence = string.Join(" ", words.ConvertAll(w => w.Text));
+            // Format:
+            // 00:00:35,700
+            // --> 00:00:38,269 [speaker_id]
+            // The text content goes here.
 
-            // 4. Format exactly as requested
-            // Line 1: 00:00:35,700
             sb.AppendLine(startTime);
-
-            // Line 2: --> 00:00:38,269 [Speaker 2]
             sb.AppendLine($"--> {endTime} [{speaker}]");
-
-            // Line 3: The text
-            sb.AppendLine(sentence);
-
-            // Line 4: Empty space
+            sb.AppendLine(text);
             sb.AppendLine();
         }
 
-        // Converts seconds (double) to "00:00:00,000" format
         private static string FormatTime(double seconds)
         {
             TimeSpan t = TimeSpan.FromSeconds(seconds);
-            // The custom format string ensures 3 digits for milliseconds
             return t.ToString(@"hh\:mm\:ss\,fff");
         }
     }
