@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="ElevenLabsScribeTool/ElevenLabsScribeTool.csproj" />
+  <Project Path="TextBolder/TextBolder.csproj" Id="a08ce4d6-5862-415d-a16c-417358f74995" />
 </Solution>
