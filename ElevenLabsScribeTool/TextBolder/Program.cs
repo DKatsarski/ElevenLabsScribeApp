@@ -8,8 +8,15 @@ class Program
 {
     static void Main(string[] args)
     {
-        // Replace with your actual file path
-        string filePath = @"C:\Users\\ddkat\Desktop\Borovan 2 N.docx";
+        Console.WriteLine("Drag and drop a file here and press Enter:");
+        string input = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+
+
+        string filePath = input.Trim().Trim('"');
+        //string filePath = @"C:\Users\ddkat\Desktop\NormalizedInterviews\Interview_BETAHAUS _Parental leave_ work-life balance.docx";
 
         Console.WriteLine($"Processing file: {filePath}...");
 
