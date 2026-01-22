@@ -1,17 +1,10 @@
-﻿using RestSharp;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+using RestSharp;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using System.Threading;
-using Xceed.Document.NET;
-
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Run = DocumentFormat.OpenXml.Wordprocessing.Run;
 
 namespace TranscriptionApp
