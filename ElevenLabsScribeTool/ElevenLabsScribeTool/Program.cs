@@ -46,8 +46,8 @@ namespace TranscriptionApp
             //string inputFilePath = @"C:\Users\ddkat\Desktop\NormalizedInterviews\Borovan 2 N.mp3";
 
             // SECURITY: Ideally, set this in your Windows Environment Variables
-            string apiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY") ?? "YOUR_API_KEY_HERE";
-
+            string apiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY") ?? Console.ReadLine().Trim().Trim('"');
+            // sk_35ea0edc284d36ac68c5140295fca20bbc908f26569741243dcf032d1ac44d4a
             // TUNING: "bg" for Bulgarian, "en" for English
             string languageCode = "bg";
 
