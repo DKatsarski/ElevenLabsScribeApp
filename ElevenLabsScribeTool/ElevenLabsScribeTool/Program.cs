@@ -47,7 +47,7 @@ namespace TranscriptionApp
 
             // SECURITY: Ideally, set this in your Windows Environment Variables
             Console.WriteLine("Enter API Key here and press Enter:");
-            string apiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEYss") ?? Console.ReadLine().Trim().Trim('"');
+            string apiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY") ?? Console.ReadLine().Trim().Trim('"');
             // sk_35ea0edc284d36ac68c5140295fca20bbc908f26569741243dcf032d1ac44d4a
             // TUNING: "bg" for Bulgarian, "en" for English
             string languageCode = "bg";
